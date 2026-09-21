@@ -1,0 +1,12 @@
+build/
+out/
+cmake-build-*/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+x64/
+Debug/
+Release/
+CMakeUserPresets.json
