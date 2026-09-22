@@ -19,6 +19,22 @@ Color bodyColor(bool overlapping) {
     return overlapping ? Color{235, 90, 90, 255} : Color{90, 170, 235, 255};
 }
 
+const char* spawnModeName(SpawnMode m) {
+    switch (m) {
+        case SpawnMode::Random:   return "Random";
+        case SpawnMode::AxisX:    return "Axis-X";
+        case SpawnMode::AxisY:    return "Axis-Y";
+        case SpawnMode::AxisZ:    return "Axis-Z";
+        case SpawnMode::Diagonal: return "Diagonal";
+        case SpawnMode::Stacked:  return "Stacked";
+    }
+    return "?";
+}
+
+int spawnCountFor(SpawnMode m) {
+    return m == SpawnMode::Random ? 160 : 12;
+}
+
 }
 
 int main() {
@@ -43,7 +59,10 @@ int main() {
     int phaseIndex = 0;
     world.setBroadPhase(activePhases[phaseIndex]);
 
-    world.spawnRandom(160, 2024);
+    SpawnMode spawnModes[] = {SpawnMode::Random, SpawnMode::AxisX, SpawnMode::AxisY,
+                              SpawnMode::AxisZ, SpawnMode::Diagonal, SpawnMode::Stacked};
+    int spawnIndex = 0;
+    world.spawnScenario(spawnModes[spawnIndex], spawnCountFor(spawnModes[spawnIndex]));
 
     const Vector3 center = toVector3(bounds.center());
 
@@ -73,8 +92,12 @@ int main() {
         }
         if (IsKeyPressed(KEY_C)) ortho = !ortho;
         if (IsKeyPressed(KEY_E)) showAxis = !showAxis;
+        if (IsKeyPressed(KEY_F)) {
+            spawnIndex = (spawnIndex + 1) % 6;
+            world.spawnScenario(spawnModes[spawnIndex], spawnCountFor(spawnModes[spawnIndex]));
+        }
         if (IsKeyPressed(KEY_R)) {
-            world.spawnRandom(160, static_cast<std::uint32_t>(GetRandomValue(1, 1 << 30)));
+            world.spawnScenario(spawnModes[spawnIndex], spawnCountFor(spawnModes[spawnIndex]));
         }
 
         if (!paused) {
@@ -142,14 +165,16 @@ int main() {
 
         DrawText(TextFormat("algorithm : %s  (A to switch)", world.broadPhase()->name()),
                  16, 14, 18, RAYWHITE);
-        DrawText(TextFormat("bodies    : %d", static_cast<int>(world.bodies().size())),
+        DrawText(TextFormat("spawn     : %s  (F to cycle)", spawnModeName(spawnModes[spawnIndex])),
                  16, 36, 18, RAYWHITE);
-        DrawText(TextFormat("pairs     : %d", static_cast<int>(world.pairs().size())),
+        DrawText(TextFormat("bodies    : %d", static_cast<int>(world.bodies().size())),
                  16, 58, 18, RAYWHITE);
-        DrawText(TextFormat("broadphase: %.1f us", world.broadPhaseMicros()),
+        DrawText(TextFormat("pairs     : %d", static_cast<int>(world.pairs().size())),
                  16, 80, 18, RAYWHITE);
+        DrawText(TextFormat("broadphase: %.1f us", world.broadPhaseMicros()),
+                 16, 102, 18, RAYWHITE);
         DrawText(TextFormat("%d FPS", GetFPS()), screenWidth - 90, 14, 18, RAYWHITE);
-        DrawText("Space pause   A algorithm   C camera   E axis   R respawn",
+        DrawText("Space pause   A algorithm   C camera   E axis   F spawn   R respawn",
                  16, screenHeight - 26, 16, Color{140, 140, 160, 255});
 
         EndDrawing();

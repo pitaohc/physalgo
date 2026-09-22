@@ -60,6 +60,29 @@ void compareOnBoxes(const std::vector<AABB>& boxes) {
     }
 }
 
+void assertPairCount(const std::vector<AABB>& boxes, int expectedPairs) {
+    const std::vector<Body> bodies = makeBodies(boxes);
+
+    BruteForce brute;
+    SweepAndPrune sap;
+    std::vector<Pair> brutePairs;
+    std::vector<Pair> sapPairs;
+
+    brute.computePairs(bodies, brutePairs);
+    sap.computePairs(bodies, sapPairs);
+
+    const std::vector<Pair> uniqueBrute = sortedUnique(brutePairs);
+    const std::vector<Pair> uniqueSap = sortedUnique(sapPairs);
+
+    CHECK(uniqueBrute == uniqueSap);
+    CHECK(static_cast<int>(uniqueSap.size()) == expectedPairs);
+
+    for (const Pair& p : sapPairs) {
+        CHECK(p.a < p.b);
+        CHECK(p.a >= 0 && p.b < static_cast<int>(bodies.size()));
+    }
+}
+
 std::vector<AABB> randomBoxes(int count, std::uint32_t seed) {
     std::mt19937 rng(seed);
     std::uniform_real_distribution<float> pos(-200.0f, 200.0f);
@@ -73,6 +96,36 @@ std::vector<AABB> randomBoxes(int count, std::uint32_t seed) {
         const float hz = size(rng) * 0.5f;
         const Vec3 c{pos(rng), pos(rng), pos(rng)};
         boxes.push_back(AABB::fromCenterHalfExtents(c, {hx, hy, hz}));
+    }
+    return boxes;
+}
+
+enum class Axis { X, Y, Z };
+
+std::vector<AABB> axisRow(Axis axis, int count, float half, float step) {
+    std::vector<AABB> boxes;
+    boxes.reserve(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const float t = static_cast<float>(i) * step;
+        Vec3 c{0.0f, 0.0f, 0.0f};
+        if (axis == Axis::X) {
+            c.x = t;
+        } else if (axis == Axis::Y) {
+            c.y = t;
+        } else {
+            c.z = t;
+        }
+        boxes.push_back(AABB::fromCenterHalfExtents(c, {half, half, half}));
+    }
+    return boxes;
+}
+
+std::vector<AABB> diagonalRow(int count, float half, float step) {
+    std::vector<AABB> boxes;
+    boxes.reserve(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const float t = static_cast<float>(i) * step;
+        boxes.push_back(AABB::fromCenterHalfExtents({t, t, t}, {half, half, half}));
     }
     return boxes;
 }
@@ -126,6 +179,29 @@ void testZSeparation() {
     });
 }
 
+void testAxisRows() {
+    const int n = 8;
+    const float h = 5.0f;
+    for (Axis axis : {Axis::X, Axis::Y, Axis::Z}) {
+        assertPairCount(axisRow(axis, n, h, 2.0f * h), n - 1);
+        assertPairCount(axisRow(axis, n, h, 2.0f * h + 1.0f), 0);
+        assertPairCount(axisRow(axis, n, h, 2.0f * h - 0.5f), n - 1);
+    }
+}
+
+void testDiagonal() {
+    const int n = 8;
+    const float h = 5.0f;
+    assertPairCount(diagonalRow(n, h, 2.0f * h), n - 1);
+    assertPairCount(diagonalRow(n, h, 2.0f * h + 1.0f), 0);
+}
+
+void testStackedAllOverlap() {
+    const int n = 8;
+    const float h = 5.0f;
+    assertPairCount(axisRow(Axis::Y, n, h, 1.0f), n * (n - 1) / 2);
+}
+
 void testRandomized() {
     for (std::uint32_t seed = 0; seed < 40; ++seed) {
         compareOnBoxes(randomBoxes(2, seed));
@@ -151,6 +227,9 @@ int main() {
     testTouching();
     testNestedAndIdentical();
     testZSeparation();
+    testAxisRows();
+    testDiagonal();
+    testStackedAllOverlap();
     testRandomized();
     testSapHasNoDuplicates();
 

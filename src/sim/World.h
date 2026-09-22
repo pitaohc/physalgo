@@ -15,6 +15,15 @@ struct Box3 {
                                   (min.z + max.z) * 0.5f}; }
 };
 
+enum class SpawnMode {
+    Random,
+    AxisX,
+    AxisY,
+    AxisZ,
+    Diagonal,
+    Stacked,
+};
+
 class World {
 public:
     explicit World(const Box3& bounds);
@@ -23,6 +32,7 @@ public:
     BroadPhase* broadPhase() const { return broadPhase_; }
 
     void spawnRandom(int count, std::uint32_t seed);
+    void spawnScenario(SpawnMode mode, int count);
     void clear();
     void step(float dt);
 

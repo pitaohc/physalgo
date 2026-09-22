@@ -49,6 +49,50 @@ void World::spawnRandom(int count, std::uint32_t seed) {
     }
 }
 
+void World::spawnScenario(SpawnMode mode, int count) {
+    bodies_.clear();
+    pairs_.clear();
+    hasMicros_ = false;
+    broadPhaseMicrosSmooth_ = 0.0;
+
+    const float half = 20.0f;
+    const Vec3 center = bounds_.center();
+    const int n = count > 0 ? count : 1;
+
+    auto makeRow = [&](const Vec3& dir, float step) {
+        const float span = static_cast<float>(n - 1) * step;
+        for (int i = 0; i < n; ++i) {
+            const float t = -span * 0.5f + static_cast<float>(i) * step;
+            Body b;
+            b.halfExtents = {half, half, half};
+            b.position = center + dir * t;
+            b.velocity = {0.0f, 0.0f, 0.0f};
+            bodies_.push_back(b);
+        }
+    };
+
+    switch (mode) {
+        case SpawnMode::Random:
+            spawnRandom(n, 2024);
+            return;
+        case SpawnMode::AxisX:
+            makeRow({1.0f, 0.0f, 0.0f}, half * 2.0f);
+            break;
+        case SpawnMode::AxisY:
+            makeRow({0.0f, 1.0f, 0.0f}, half * 2.0f);
+            break;
+        case SpawnMode::AxisZ:
+            makeRow({0.0f, 0.0f, 1.0f}, half * 2.0f);
+            break;
+        case SpawnMode::Diagonal:
+            makeRow({1.0f, 1.0f, 1.0f}, half * 2.0f);
+            break;
+        case SpawnMode::Stacked:
+            makeRow({0.0f, 1.0f, 0.0f}, 3.0f);
+            break;
+    }
+}
+
 void World::step(float dt) {
     for (Body& b : bodies_) {
         b.position += b.velocity * dt;
