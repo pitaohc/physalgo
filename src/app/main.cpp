@@ -1,6 +1,8 @@
 #include "raylib.h"
+#include "raymath.h"
 #include "rlgl.h"
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -34,6 +36,93 @@ const char* spawnModeName(SpawnMode m) {
 
 int spawnCountFor(SpawnMode m) {
     return m == SpawnMode::Random ? 1600 : 100;
+}
+
+float clampf(float v, float lo, float hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+// Pan the camera along its screen plane. unitsPerPixel converts pixel delta to world units.
+void panCamera(Camera3D& cam, Vector2 delta, float unitsPerPixel) {
+    const Vector3 forward = Vector3Normalize(Vector3Subtract(cam.target, cam.position));
+    const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, cam.up));
+    const Vector3 up = Vector3CrossProduct(right, forward);
+
+    Vector3 offset = Vector3Add(Vector3Scale(right, -delta.x), Vector3Scale(up, delta.y));
+    offset = Vector3Scale(offset, unitsPerPixel);
+
+    cam.position = Vector3Add(cam.position, offset);
+    cam.target = Vector3Add(cam.target, offset);
+}
+
+// Zoom along the view direction: factor multiplies current distance (<1 zooms in, >1 zooms out).
+void zoomCamera(Camera3D& cam, float factor) {
+    const Vector3 forward = Vector3Normalize(Vector3Subtract(cam.target, cam.position));
+    const float dist = Vector3Length(Vector3Subtract(cam.target, cam.position));
+    const float newDist = clampf(dist * factor, 20.0f, 5000.0f);
+    cam.position = Vector3Add(cam.target, Vector3Scale(forward, -newDist));
+}
+
+// Perspective: left-drag orbits, right-drag pans, middle-drag / wheel zooms.
+void updatePerspectiveCamera(Camera3D& cam) {
+    const float rotSpeed = 0.003f;
+    const float wheelZoomStep = 0.12f;    // wheel: per notch
+    const float dragZoomStep = 0.006f;    // middle-drag: per pixel
+    const Vector2 delta = GetMouseDelta();
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        Vector3 rel = Vector3Subtract(cam.position, cam.target);
+        const float radius = Vector3Length(rel);
+        if (radius > 1e-4f) {
+            float yaw = atan2f(rel.x, rel.z);
+            float pitch = asinf(clampf(rel.y / radius, -1.0f, 1.0f));
+
+            yaw -= delta.x * rotSpeed;
+            pitch = clampf(pitch + delta.y * rotSpeed, -1.55f, 1.55f);
+
+            rel.x = radius * cosf(pitch) * sinf(yaw);
+            rel.y = radius * sinf(pitch);
+            rel.z = radius * cosf(pitch) * cosf(yaw);
+            cam.position = Vector3Add(cam.target, rel);
+        }
+    }
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        const float dist = Vector3Length(Vector3Subtract(cam.target, cam.position));
+        panCamera(cam, delta, dist * 0.001f);
+    }
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+        // Drag up (delta.y < 0) zooms in, drag down (delta.y > 0) zooms out.
+        zoomCamera(cam, 1.0f + delta.y * dragZoomStep);
+    }
+
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0f) {
+        zoomCamera(cam, 1.0f - wheel * wheelZoomStep);
+    }
+}
+
+// Top-down (ortho): drag pans, middle-drag / wheel zooms (adjusts ortho height).
+void updateOrthoCamera(Camera3D& cam) {
+    const float wheelZoomStep = 0.1f;    // wheel: per notch
+    const float dragZoomStep = 0.006f;   // middle-drag: per pixel
+    const Vector2 delta = GetMouseDelta();
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        const float unitsPerPixel = cam.fovy / static_cast<float>(GetScreenHeight());
+        panCamera(cam, delta, unitsPerPixel);
+    }
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+        // Drag up (delta.y < 0) zooms in, drag down (delta.y > 0) zooms out.
+        cam.fovy = clampf(cam.fovy * (1.0f + delta.y * dragZoomStep), 30.0f, 8000.0f);
+    }
+
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0f) {
+        cam.fovy = clampf(cam.fovy * (1.0f - wheel * wheelZoomStep), 30.0f, 8000.0f);
+    }
 }
 
 }
@@ -112,8 +201,10 @@ int main() {
             world.step(0.0f);
         }
 
-        if (!ortho) {
-            UpdateCamera(&perspectiveCam, CAMERA_ORBITAL);
+        if (ortho) {
+            updateOrthoCamera(orthoCam);
+        } else {
+            updatePerspectiveCamera(perspectiveCam);
         }
         Camera3D camera = ortho ? orthoCam : perspectiveCam;
 
