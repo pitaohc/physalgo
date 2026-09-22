@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/BruteForce.h"
+#include "core/MultiBoxPruning.h"
 #include "core/SweepAndPrune.h"
 #include "sim/World.h"
 
@@ -32,7 +33,7 @@ const char* spawnModeName(SpawnMode m) {
 }
 
 int spawnCountFor(SpawnMode m) {
-    return m == SpawnMode::Random ? 160 : 12;
+    return m == SpawnMode::Random ? 1600 : 100;
 }
 
 }
@@ -53,9 +54,13 @@ int main() {
 
     auto brute = std::make_unique<BruteForce>();
     auto sap = std::make_unique<SweepAndPrune>();
+    auto mbp = std::make_unique<MultiBoxPruning>();
     SweepAndPrune* sapView = sap.get();
+    std::vector<BroadPhase*> activePhases;
+    activePhases.push_back(sap.get());
+    activePhases.push_back(brute.get());
+    activePhases.push_back(mbp.get());
 
-    BroadPhase* activePhases[] = {sapView, brute.get()};
     int phaseIndex = 0;
     world.setBroadPhase(activePhases[phaseIndex]);
 
@@ -87,7 +92,8 @@ int main() {
     while (!WindowShouldClose()) {
         if (IsKeyPressed(KEY_SPACE)) paused = !paused;
         if (IsKeyPressed(KEY_A)) {
-            phaseIndex = 1 - phaseIndex;
+
+            phaseIndex = (phaseIndex + 1) % activePhases.size();
             world.setBroadPhase(activePhases[phaseIndex]);
         }
         if (IsKeyPressed(KEY_C)) ortho = !ortho;

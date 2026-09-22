@@ -39,11 +39,11 @@ endif()
 
 option(PHYS_BUILD_APP "Build the raylib visualization app" ON)
 
-add_library(phys_core STATIC
-    src/core/BruteForce.cpp
-    src/core/SweepAndPrune.cpp
-    src/sim/World.cpp
+file(GLOB_RECURSE PHYS_CORE_SOURCES CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sim/*.cpp
 )
+add_library(phys_core STATIC ${PHYS_CORE_SOURCES})
 target_include_directories(phys_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_executable(phys_tests tests/test_sap.cpp)
